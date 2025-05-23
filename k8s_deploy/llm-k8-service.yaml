@@ -1,0 +1,15 @@
+# llm-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-app-service
+spec:
+  selector:
+    app: llm-app
+  ports:
+    - protocol: TCP
+      port: 80       # The port the Service will expose (e.g., what the LoadBalancer listens on)
+      targetPort: 8000 # The port your container (Uvicorn) is listening on (from containerPort in Deployment)
+  type: LoadBalancer   # Exposes the service externally using a cloud provider's load balancer
+                       # For Minikube, use `minikube service llm-app-service` to access
+                       # Alternatively, use type: NodePort for simpler testing on Minikube
