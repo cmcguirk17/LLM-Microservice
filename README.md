@@ -1,268 +1,307 @@
-# LLM Microservice with LLAMA.CPP
+# 🦙 LLM Microservice with LLAMA.CPP 🚀
 
-# TODO
-CHECK if README is needed in docker when setting up poetry
+A high-performance FastAPI microservice for running GGUF-formatted Large Language Models using `llama-cpp-python`. It offers an OpenAI-compatible chat API, efficient local inference with CPU/GPU support, and is ready for containerization and Kubernetes deployment.
 
-## Features
+---
 
-*   **Direct GGUF Model Integration:** Leverages `llama-cpp-python` for direct, efficient loading and inference with GGUF-formatted Large Language Models.
-*   **High-Performance API:** Built with FastAPI for asynchronous request handling, enabling efficient concurrent processing of chat completion requests.
-*   **Optimized Local Inference:**
-    *   Utilizes `llama-cpp-python` for CPU-optimized inference.
-    *   Supports GPU offloading (`N_GPU_LAYERS`) for accelerated performance if compatible hardware is available.
-*   **OpenAI-Compatible Chat API:** Exposes a `/v1/chat/completions` endpoint with a request/response structure similar to the OpenAI API, facilitating easier integration with existing tools and SDKs.
-*   **Robust Model Management:**
-    *   Model loading and resource management handled within FastAPI's `lifespan` events for clean startup and shutdown.
-    *   Clear logging for model loading status and inference process.
-*   **Containerization Ready:** Designed for containerization (e.g., using Docker) with environment variable-based configuration for model path, GPU layers, and other parameters.
-*   **Comprehensive Testing:**
-    *   Includes **unit tests** for individual components and logic.
-    *   Includes **integration tests** to verify the end-to-end API workflow.
-*   **Automatic API Documentation:** FastAPI provides interactive API documentation (Swagger UI at `/docs` and ReDoc at `/redoc`) out-of-the-box.
-*   **Configurable Inference:** Allows runtime configuration of model path, context size (`N_CTX`), GPU layers, and threading via environment variables.
-*   **Health Check Endpoint:** Provides a `/health` endpoint to monitor the service status and model loading state.
+## ✨ Features
 
+*   🧠 **Direct GGUF Model Integration:** Leverages `llama-cpp-python` for efficient loading and inference with GGUF models.
+*   ⚡ **High-Performance API:** Built with FastAPI for asynchronous request handling and efficient concurrent processing.
+*   💻 **Optimized Local Inference:**
+    *   CPU-optimized inference via `llama-cpp-python`.
+    *   GPU offloading support (`N_GPU_LAYERS`) for accelerated performance on compatible hardware.
+*   🤖 **OpenAI-Compatible Chat API:** Exposes a `/v1/chat/completions` endpoint mimicking the OpenAI API structure for easy integration.
+*   🛠️ **Robust Model Management:** Clean startup/shutdown model loading within FastAPI's `lifespan` events, with clear logging.
+*   📦 **Containerization Ready:** Designed for Docker, with environment variable-based configuration.
+*   🧪 **Comprehensive Testing:** Includes unit and integration tests using PyTest.
+*   📖 **Automatic API Documentation:** Interactive API docs (Swagger UI at `/docs` and ReDoc at `/redoc`) via FastAPI. Docs also available via sphinx in docs/_build/html/index.html!
+*   ⚙️ **Configurable Inference:** Runtime configuration for model path, context size (`N_CTX`), GPU layers, and threading.
+*   ❤️ **Health Check Endpoint:** `/v1/health` endpoint for service status and model loading state.
 
-## Prerequisites/Setup (Ubuntu)
+---
 
-### Docker
-https://docs.docker.com/engine/install/ubuntu/
+## 🛠️ Prerequisites & Setup (Ubuntu Linux)
 
-### Docker Compose
-https://docs.docker.com/desktop/setup/install/linux/
+This guide assumes an Ubuntu-based environment.
 
-### NVIDIA Container Toolkit (For GPU version)
-https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+### 1. Core Tools
 
-### Kubectl and Minikube
-Get latest kubectl
-```
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-```
-Make executable
-```
-sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-```
-Verify
-```
-kubectl version --client
-```
+*   **Docker:** For containerizing the application.
+    *   Installation: [Docker for Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+*   **Docker Compose:** For managing multi-container Docker applications locally.
+    *   Installation: [Docker Compose for Linux](https://docs.docker.com/compose/install/linux/) (*Note: Docker Desktop for Linux includes Compose*)
 
-Get latest minikube
-```
-curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-```
-Make executable
-```
-sudo install minikube /usr/local/bin/
-```
-Verify
-```
-minikube version
-```
-Add metrics-server addon
-```
-minikube addons enable metrics-server
-minikube addons enable dashboard
-```
-Switch to using minikube docker daemon
-```
-# use minikube
-eval $(minikube -p minikube docker-env)
-# switch back to docker
-eval $(minikube -p minikube docker-env -u)
-```
+### 2. Poetry (Python Dependency Management)
 
-### Poetry
-If you have poetry, navigate to the project root directory
-```
-poetry install
-```
+*   **Installation:**
+    ```bash
+    curl -sSL https://install.python-poetry.org | python3 -
+    ```
+*   **Add to PATH** (run in current terminal or add to `~/.bashrc`):
+    ```bash
+    export PATH="$HOME/.local/bin:$PATH"
+    ```
+    If added to shell config, reload it: `source ~/.bashrc`
+*   **Verify:**
+    ```bash
+    poetry --version
+    ```
+*   **Install Project Dependencies:** Navigate to the project root directory:
+    ```bash
+    poetry install
+    ```
+    *   **For Local GPU Usage (Optional):** If you intend to run locally with GPU acceleration and have the CUDA toolkit installed, use this command *instead* of the plain `poetry add llama-cpp-python` (if it was added before) or if installing `llama-cpp-python` for the first time for GPU:
+        ```bash
+        # Ensure CUDA toolkit is installed on your system first
+        CMAKE_ARGS="-DGGML_CUDA=on poetry add llama-cpp-python
+        # Then run poetry install if you haven't already or to update
+        poetry install
+        ```
 
-If you don't have poetry, setup the project locally with
-```
-curl -sSL https://install.python-poetry.org | python3 -
-```
-Add it to your path (either run in current terminal or add permanently to your bashrc)
-```
-export PATH="$HOME/.local/bin:$PATH"
-```
-If you added it to your bashrc with your facourite text editor then run the following to reload it
-```
-source ~/.bashrc
-```
-Verify with
-```
-poetry --version
-```
-If installing for local GPU usage in your poetry venv, run the following. Else, skip to the last step
-```
-CMAKE_ARGS="-DGGML_CUDA=on" poetry add llama-cpp-python==0.3.9
-```
-Install dependencies with
-```
-poetry install
-```
+    > 📝 **Note:** Activate the Poetry environment using `poetry shell`, `source .venv/bin/activate`, or run commands with `poetry run ...`.
 
+### 3. NVIDIA Container Toolkit (For GPU Support in Docker)
 
-#### Note!
-You can activate the environment using $ poetry shell (if shell installed), with $ source .venv/bin/activate, or run scripts using $ poetry run python <my_file.py>
+*   Required if you want to use the GPU version of the Docker image.
+*   Installation: [NVIDIA Container Toolkit Install Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 
+### 4. Kubernetes Tools (For Minikube Deployment)
 
-## Project Structure
+*   **kubectl (Kubernetes Command-Line Tool):**
+    ```bash
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    kubectl version --client
+    ```
+*   **Minikube (Local Kubernetes):**
+    ```bash
+    curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    sudo install minikube /usr/local/bin/
+    minikube version
+    ```
+*   **Minikube Addons:**
+    ```bash
+    minikube addons enable metrics-server
+    minikube addons enable dashboard
+    ```
+*   **Minikube Docker Environment:** To build images directly into Minikube's Docker daemon:
+    ```bash
+    # Switch to Minikube's Docker daemon
+    eval $(minikube -p minikube docker-env)
 
-MS_LLM/   REDO ME
+    # To switch back to your system's Docker daemon later
+    # eval $(minikube -p minikube docker-env -u)
+    ```
 
+---
 
-## Testing
+## 📂 Project Structure
 
-Testing accomplished with PyTest and PyTest-Cov
-```
-pytest --cov=app --cov-report=term-missing tests/
-```
+ms_llm/
+├── .env # Environment variables for local Docker runs (gitignored)
+├── .gitignore
+├── app/ # Main application source code
+│ ├── api/ # API endpoint definitions
+│ │ └── v1/
+│ │ └── endpoints.py
+│ ├── core/ # Core logic, config, dependencies
+│ │ ├── config.py
+│ │ └── dependencies.py
+│ ├── models/ # Directory for GGUF model files
+│ │ └── YOUR_MODEL.gguf # Placeholder for your actual model file
+│ ├── schemas.py # Pydantic schemas
+│ ├── client_chat.py # Example CLI chat client
+│ └── main.py # FastAPI application entrypoint
+├── docs/ # Sphinx documentation source files
+├── k8s_deploy/ # Kubernetes manifest files
+├── tests/ # Test suite
+│ ├── init.py
+│ ├── integration/ # Integration tests (run against a running app)
+│ │ └── ...
+│ ├── load/ # Load testing scripts
+│ │ └── locustfile.py
+│ └── unit/ # Unit tests
+│ └── ...
+├── Dockerfile # Dockerfile for CPU build
+├── Dockerfile_GPU # Dockerfile for GPU build
+├── docker-compose.yml # Docker Compose for CPU
+├── docker-compose_GPU.yml # Docker Compose for GPU
+├── poetry.lock
+├── pyproject.toml # Poetry project configuration
+└── README.md
 
-### UNIT
-```
-poetry run pytest tests/unit
-```
+---
 
-### INTEGRATION
+## 🚀 Usage
 
-Start the app (main.py) using uvicorn or by running the app with python
+### 1. Running Locally (without Docker)
 
-#### Option 1. UVICORN
-```
-cd app/
-poetry run uvicorn main:app_fastapi --reload --host 0.0.0.0 --port 8000
+Ensure you have installed dependencies using Poetry (see Prerequisites).
 
-# In a new terminal navigate to the project root
-poetry run pytest tests/integration
-```
+*   **Option 1: Uvicorn (Recommended for development)**
+    ```bash
+    cd app/
+    poetry run uvicorn main:app_fastapi --reload --host 0.0.0.0 --port 8000
+    ```
+*   **Option 2: Python**
+    ```bash
+    cd app/
+    poetry run python main.py
+    ```
 
-#### Option 2. PYTHON
-```
-cd app/
-poetry run python3 main.py
+### 2. Running with Docker Compose
 
-# In a new terminal navigate to the project root
-poetry run pytest tests/integration
-```
+*   **CPU Version:**
+    ```bash
+    # Make sure your .env file is configured
+    docker compose up --build
+    ```
+*   **GPU Version:**
+    ```bash
+    # Make sure your .env file is configured
+    docker compose -f docker-compose.gpu.yml up --build
+    ```
 
-#### Option 3. DOCKER
-Note you can do this with the CPU or GPU builds
-```
-# CPU
-docker compose up --build
+### 3. Building & Running Docker Image Manually
 
-# GPU
-docker compose -f docker-compose_GPU.yml up --build
-```
+*   Build the image:
+    ```bash
+    # For CPU
+    docker build -t ms_llm_app:latest .
+    # For GPU (using Dockerfile_GPU)
+    # docker build -f Dockerfile_GPU -t ms_llm_app_gpu:latest .
+    ```
+*   Run the container:
+    ```bash
+    docker run -p 8000:8000 --env-file .env ms_llm_app:latest
+    # For GPU
+    docker run --gpus all -p 8000:8000 --env-file .env ms_llm_app_gpu:latest
+    ```
 
-In a new terminal
-```
-poetry run pytest tests/integration
-```
+### 4. Interacting with the API
 
-Or using docker build + run method
-```
-docker build -t ms_llm_app:<tag> .
-docker run --env-file .env ms_llm_app:<tag>
-```
+The service will typically be available at `http://localhost:8000`.
 
-## Usage
+*   **Health Check:**
+    ```bash
+    curl http://localhost:8000/v1/health
+    ```
+*   **Chat Completions:**
+    ```bash
+    curl -X POST http://localhost:8000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+        "messages": [
+            {"role": "system", "content": "You are a witty AI assistant."},
+            {"role": "user", "content": "Why is the sky blue?"}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 150
+    }'
+    ```
+*   **Interactive CLI Client:**
+    Once the service is running (locally or via Docker):
+    ```bash
+    cd app/
+    poetry run python client_chat.py
+    ```
+    Follow the prompts to interact with the LLM.
 
-### Talking to the LLM
-Samples with curl or using a tool like postman
-```
-curl -X GET http://localhost:8000/v1/health
-    
-curl -X POST http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d \
-'{
-    "messages": [
-        {
-            "role": "system",
-            "content": "You are a helpful assistant."
-        },
-        {
-            "role": "user",
-            "content": "What is the capital of France?"
-        }
-    ],
-    "temperature": 0.7,
-    "max_tokens": 150
-}'
-```
+### 5. Deploying & Scaling with Minikube (Kubernetes)
 
-With the main.py application running either through docker-compose, with python, or with uvicorn run:
-```
-cd app/
-poetry run python3 client_chat.py
-```
-This enables chat demo with history
+1.  **Start Minikube:**
+    ```bash
+    minikube start --driver=docker
+    ```
+2.  **Set Docker Environment to Minikube:**
+    ```bash
+    eval $(minikube -p minikube docker-env)
+    ```
+3.  **Build Docker Image:**
+    Make sure `imagePullPolicy: Never` is set in `llm-k8-deploy.yaml`
+    ```bash
+    docker build -t ms_llm_app:k8 .
+    ```
+4.  **Apply Kubernetes Manifests:**
+    (Ensure you are in the project root where YAML files are)
+    ```bash
+    kubectl apply -f llm-k8-configmap.yaml
+    kubectl apply -f llm-k8-deploy.yaml
+    kubectl apply -f llm-k8-service.yaml
+    kubectl apply -f llm-k8-hpa.yaml
+    ```
+5.  **Monitor Deployment:**
+    *   Watch pod status: `watch kubectl get pods -l app=llm-app`
+    *   Check service URL: `minikube service llm-app-service --url` (replace `llm-app-service` with your actual service name)
+    *   View dashboard: `minikube dashboard`
 
-### Scaling
-After having the docker image built
-```
-docker build -t ms_llm_app:k8 .
-```
+6.  **Interact with Deployed Service:**
+    Use the URL from `minikube service ... --url`. Let's say it's `http://192.168.49.2:30554`.
+    ```bash
+    curl -X POST http://192.168.49.2:30554/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+        "messages": [{"role": "user", "content": "Who won the Stanley Cup in 2020?"}],
+        "temperature": 0.7,
+        "max_tokens": 50
+    }'
+    ```
+7.  **Monitor HPA and Resource Usage:**
+    ```bash
+    kubectl get hpa llm-app-hpa -w
+    kubectl top pods -l app=llm-app
+    ```
+8.  **Load Testing with Locust:**
+    *   Navigate to your Locust test directory (e.g., `tests/load/` or project root if `locustfile.py` is there).
+    *   Get the service URL: `minikube service llm-app-service --url`
+    *   Run Locust:
+        ```bash
+        poetry run locust --host="<SERVICE_URL_FROM_MINIKUBE>"
+        ```
+        Open `http://localhost:8089` in your browser.
 
-Assuming kubectl and minikube (with driver=docker, and addons: metrics-server, dashboard) and are setup on your system in terminal run:
-```
-minikube start
-eval $(minikube -p minikube docker-env)
-kubectl apply -f llm-k8-configmap.yaml
-kubectl apply -f llm-k8-deploy.yaml
-kubectl apply -f llm-k8-service.yaml
-kubectl apply -f llm-k8-hpa.yaml
-```
+9.  **Teardown Minikube Deployment:**
+    ```bash
+    kubectl delete -f llm-k8-hpa.yaml
+    kubectl delete -f llm-k8-service.yaml
+    kubectl delete -f llm-k8-deploy.yaml
+    kubectl delete -f llm-k8-configmap.yaml
+    # Optionally, stop Minikube:
+    # minikube stop
+    ```
 
-View running status
-```
-watch kubectl get pods -l app=llm-app
-```
+---
 
-Interact
-```
-minikube service llm-app-service --url
-# ex/ 192.168.49.2:31720
-curl -X POST http://192.168.49.2:30554/v1/chat/completions \
--H "Content-Type: application/json" \
--d '{
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "temperature": 0.7,
-    "max_tokens": 50
-}'
-# Response
-```
+## 🧪 Testing
 
-Monitor
-```
-kubectl top pods -l app=llm-app
-kubectl get hpa llm-app-hpa -w
-kubectl get pods -l app=llm-app -w
-```
+Tests are run using PyTest. Coverage reports are generated using `pytest-cov`.
 
-To test load, navigate to tests/load/
+*   **Run all tests with coverage:**
+    (From project root)
+    ```bash
+    poetry run pytest --cov=app --cov-report=term-missing tests/
+    ```
+*   **Run only Unit Tests:**
+    ```bash
+    poetry run pytest tests/unit/
+    ```
+*   **Run only Integration Tests:**
+    *   The application must be running for integration tests. Start it using one of the methods in the "Usage" section (e.g., Uvicorn, Docker).
+    *   Then, in a new terminal:
+        ```bash
+        poetry run pytest tests/integration/
+        ```
 
-```
-cd tests/load/
-# IP => minikube service llm-app-service --url
-poetry run locust --host="<IP>"
-```
+---
 
-To stop
-```
-kubectl delete -f llm-k8-hpa.yaml
-kubectl delete -f llm-k8-service.yaml
-kubectl delete -f llm-k8-deploy.yaml
-kubectl delete -f llm-k8-configmap.yaml
-```
+## 📚 Model Zoo
 
-## Model Zoo
+You can find a variety of GGUF-formatted models compatible with `llama.cpp`. A good starting point is TheBloke on Hugging Face, or the official `llama.cpp` resources.
 
-From llama.cpp github
-```
-https://github.com/ggml-org/llama.cpp?tab=readme-ov-file#text-only
-```
-Add model .gguf to app/models/ directory
+*   **`llama.cpp` Model Suggestions:** [llama.cpp Model List](https://github.com/ggerganov/llama.cpp#models)
+*   **TheBloke on Hugging Face:** [Search for GGUF models](https://huggingface.co/TheBloke)
 
+Place your downloaded `.gguf` model files into the `app/models/` directory. Update the `MODEL_PATH` environment variable (in `.env`, Docker Compose, or Kubernetes ConfigMap) to point to your chosen model file (e.g., `app/models/your-chosen-model.Q4_K_M.gguf`).
+
+---
