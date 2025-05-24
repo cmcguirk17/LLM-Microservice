@@ -9,14 +9,14 @@ A FastAPI microservice for running GGUF-formatted Large Language Models using `l
 *   🧠 **Direct GGUF Model Integration:** Leverages `llama-cpp-python` for efficient loading and inference with GGUF models.
 *   ⚡ **High-Performance API:** Built with FastAPI for asynchronous request handling and efficient concurrent processing.
 *   💻 **Optimized Local Inference:**
-    *   CPU-optimized inference via `llama-cpp-python`.
-    *   GPU offloading support (`N_GPU_LAYERS`) for accelerated performance on compatible hardware.
-*   🤖 **OpenAI-Compatible Chat API:** Exposes a `/v1/chat/completions` endpoint mimicking the OpenAI API structure for easy integration.
+    *   CPU-optimized inference via `llama-cpp-python` and utilizing quantized models.
+    *   GPU offloading support for accelerated performance on compatible hardware.
+*   🤖 **OpenAI-Compatible Chat API:** Exposes a `/v1/chat/completions` endpoint.
 *   🛠️ **Robust Model Management:** Clean startup/shutdown model loading within FastAPI's `lifespan` events, with clear logging.
 *   📦 **Containerization Ready:** Designed for Docker, with environment variable-based configuration.
 *   🧪 **Comprehensive Testing:** Includes unit and integration tests using PyTest.
 *   📖 **Automatic API Documentation:** Interactive API docs (Swagger UI at `/docs` and ReDoc at `/redoc`) via FastAPI. Docs also available via sphinx in docs/_build/html/index.html!
-*   ⚙️ **Configurable Inference:** Runtime configuration for model path, context size (`N_CTX`), GPU layers, and threading.
+*   ⚙️ **Configurable Inference:** Runtime configuration for inference with configuration file or environment variables!
 *   ❤️ **Health Check Endpoint:** `/v1/health` endpoint for service status and model loading state.
 
 ---
@@ -212,6 +212,8 @@ The service will typically be available at `http://localhost:8000`.
     ```
 7.  **Monitor HPA and Resource Usage:**
     ```bash
+    kubectl get pods -w
+
     kubectl get hpa llm-app-hpa -w
     kubectl top pods -l app=llm-app
     ```
@@ -260,11 +262,10 @@ Tests are run using PyTest. Coverage reports are generated using `pytest-cov`.
 
 ## 📚 Model Zoo
 
-You can find a variety of GGUF-formatted models compatible with `llama.cpp`. A good starting point is TheBloke on Hugging Face, or the official `llama.cpp` resources.
+You can find a variety of GGUF-formatted models compatible with `llama.cpp`. A good starting point is Hugging Face, or the official `llama.cpp` resources.
 
 *   **`llama.cpp` Model Suggestions:** [llama.cpp Model List](https://github.com/ggerganov/llama.cpp#models)
-*   **TheBloke on Hugging Face:** [Search for GGUF models](https://huggingface.co/TheBloke)
 
-Place your downloaded `.gguf` model files into the `app/models/` directory. Update the `MODEL_PATH` environment variable (in `.env`, Docker Compose, or Kubernetes ConfigMap) to point to your chosen model file (e.g., `app/models/your-chosen-model.Q4_K_M.gguf`).
+Place your downloaded `.gguf` model files into the `app/models/` directory. Update the `MODEL_PATH` environment variable (in `.env`, Docker Compose, or Kubernetes ConfigMap) to point to your chosen model file (e.g., `app/models/your-chosen-model.gguf`).
 
 ---
