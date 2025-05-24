@@ -2,6 +2,7 @@ from typing import Annotated
 from fastapi import Request, HTTPException, Depends
 from llama_cpp import Llama
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -24,3 +25,19 @@ async def get_llm_instance(request: Request) -> Llama:
     return request.app.state.llm
 
 LLMDependency = Annotated[Llama, Depends(get_llm_instance)]
+
+
+async def get_llm_lock(request: Request) -> asyncio.Lock:
+    """
+    Dependency to get the LLM asyncio.Lock stored in app.state.
+    Raises HTTPException 503 if the lock is not available (implies LLM isn't loaded).
+    """
+    if not hasattr(request.app.state, "llm_lock") or request.app.state.llm_lock is None:
+        logger.error("LLM lock not found in application state. LLM likely not loaded.")
+        raise HTTPException(
+            status_code=503,
+            detail="LLM lock is unavailable. Service may be initializing or LLM failed to load.",
+        )
+    return request.app.state.llm_lock
+
+LLMLockDependency = Annotated[asyncio.Lock, Depends(get_llm_lock)]

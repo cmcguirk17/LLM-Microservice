@@ -3,6 +3,7 @@ import time
 import logging
 from contextlib import asynccontextmanager
 from typing import Optional
+import asyncio
 
 from fastapi import FastAPI
 from llama_cpp import Llama
@@ -65,9 +66,15 @@ async def lifespan(app: FastAPI):
             # app.state.llm will remain None or not be set
 
     app.state.llm = llm_instance # Store llm_instance (or None) in app.state
-
+    if llm_instance:
+        app.state.llm_lock = asyncio.Lock() # Create a lock
+        logger.info("LLM Lock initialized.")
+    else:
+        app.state.llm_lock = None # If llm not loaded, set lock as None
+        logger.info("LLM Lock not initialized as LLM failed to load or was not found.")
+        
     logger.info(
-        "Application startup phase complete. Model loading (if successful) is done."
+        "Application startup complete. Model loading is done."
     )
     
     # Code above yield is executed on application start

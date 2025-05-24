@@ -1,6 +1,6 @@
 # 🦙 LLM Microservice with LLAMA.CPP 🚀
 
-A high-performance FastAPI microservice for running GGUF-formatted Large Language Models using `llama-cpp-python`. It offers an OpenAI-compatible chat API, efficient local inference with CPU/GPU support, and is ready for containerization and Kubernetes deployment.
+A FastAPI microservice for running GGUF-formatted Large Language Models using `llama-cpp-python`. It offers an OpenAI-compatible chat API, efficient local inference with CPU/GPU support, and is ready for containerization and Kubernetes deployment.
 
 ---
 
@@ -96,43 +96,6 @@ This guide assumes an Ubuntu-based environment.
 
 ---
 
-## 📂 Project Structure
-
-ms_llm/
-├── .env # Environment variables for local Docker runs (gitignored)
-├── .gitignore
-├── app/ # Main application source code
-│ ├── api/ # API endpoint definitions
-│ │ └── v1/
-│ │ └── endpoints.py
-│ ├── core/ # Core logic, config, dependencies
-│ │ ├── config.py
-│ │ └── dependencies.py
-│ ├── models/ # Directory for GGUF model files
-│ │ └── YOUR_MODEL.gguf # Placeholder for your actual model file
-│ ├── schemas.py # Pydantic schemas
-│ ├── client_chat.py # Example CLI chat client
-│ └── main.py # FastAPI application entrypoint
-├── docs/ # Sphinx documentation source files
-├── k8s_deploy/ # Kubernetes manifest files
-├── tests/ # Test suite
-│ ├── init.py
-│ ├── integration/ # Integration tests (run against a running app)
-│ │ └── ...
-│ ├── load/ # Load testing scripts
-│ │ └── locustfile.py
-│ └── unit/ # Unit tests
-│ └── ...
-├── Dockerfile # Dockerfile for CPU build
-├── Dockerfile_GPU # Dockerfile for GPU build
-├── docker-compose.yml # Docker Compose for CPU
-├── docker-compose_GPU.yml # Docker Compose for GPU
-├── poetry.lock
-├── pyproject.toml # Poetry project configuration
-└── README.md
-
----
-
 ## 🚀 Usage
 
 ### 1. Running Locally (without Docker)
@@ -185,7 +148,7 @@ The service will typically be available at `http://localhost:8000`.
 
 *   **Health Check:**
     ```bash
-    curl http://localhost:8000/v1/health
+    curl -X GET http://localhost:8000/v1/health
     ```
 *   **Chat Completions:**
     ```bash

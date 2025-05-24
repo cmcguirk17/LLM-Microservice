@@ -13,7 +13,7 @@ from core.schemas import (
     ChatMessageOutput,
 )
 
-from core.dependencies import LLMDependency # Annotated Llama instance
+from core.dependencies import LLMDependency, LLMLockDependency # Annotated Llama instance
 from core.config import MODEL_PATH
 
 # Get a logger for this module
@@ -59,6 +59,7 @@ async def health_check_status(request: Request) -> dict:
 async def create_chat_completion(
     request_data: ChatCompletionRequest,
     llm: LLMDependency,
+    llm_lock: LLMLockDependency,
 ) -> ChatCompletionResponse:
     """
     Generates a chat completion response from the loaded Large Language Model.
@@ -74,68 +75,66 @@ async def create_chat_completion(
     # Prepare messages for the Llama model
     messages_for_llm = [message.model_dump() for message in request_data.messages]
 
-    try:
-        logger.info("Offloading LLM inference to thread pool executor.")
-        start_inference_time = time.time_ns()
+    async with llm_lock:
+        logger.info("Acquired lock.")
 
-        # functools.partial is used to pre-fill KEY\VALUE arguments
-        blocking_task = functools.partial(
-            llm.create_chat_completion, # The blocking function from llama_cpp
-            messages=messages_for_llm,
-            temperature=request_data.temperature,
-            max_tokens=request_data.max_tokens,
-            top_p=request_data.top_p,
-            stop=request_data.stop,
-        )
+        try:
+            logger.info("Offloading LLM inference to thread pool executor.")
+            start_inference_time = time.time_ns()
 
-        # Run the blocking LLM call in a separate thread
-        loop = asyncio.get_event_loop()
-        completion_result = await loop.run_in_executor(None, blocking_task) # ThreadPoolExecutor
+            # functools.partial is used to pre-fill KEY\VALUE arguments
+            blocking_task = functools.partial(
+                llm.create_chat_completion, # The blocking function from llama_cpp
+                messages=messages_for_llm,
+                temperature=request_data.temperature,
+                max_tokens=request_data.max_tokens,
+                top_p=request_data.top_p,
+                stop=request_data.stop,
+            )
 
-        total_inference_time_ms = round((time.time_ns() - start_inference_time) * 1e-6, 3)
-        logger.info(f"LLM processing completed in {total_inference_time_ms} ms.")
+            # Run the blocking LLM call in a separate thread
+            loop = asyncio.get_event_loop()
+            completion_result = await loop.run_in_executor(None, blocking_task) # ThreadPoolExecutor
 
-        # Process LLM response
-        if not isinstance(completion_result, dict) or \
-           "choices" not in completion_result or \
-           not isinstance(completion_result["choices"], list) or \
-           not completion_result["choices"] or \
-           "message" not in completion_result["choices"][0] or \
-           not isinstance(completion_result["choices"][0]["message"], dict):
-            logger.error(f"Unexpected LLM response structure: {completion_result}")
-            raise HTTPException(status_code=500, detail="Invalid response structure from LLM.")
+            total_inference_time_ms = round((time.time_ns() - start_inference_time) * 1e-6, 3)
+            logger.info(f"LLM processing completed in {total_inference_time_ms} ms.")
 
-        first_choice = completion_result["choices"][0]
-        llm_message = first_choice["message"]
+            # Process LLM response
+            if not isinstance(completion_result, dict):
+                logger.error(f"Unexpected LLM response structure: {completion_result}")
+                raise HTTPException(status_code=500, detail="Invalid response structure from LLM.")
 
-        response_message = ChatMessageOutput(
-            role=llm_message.get("role", "assistant"), # Default to assistant if role is missing
-            content=llm_message.get("content", "")    # Default to empty string if content is missing
-        )
-        
-        choice = ChatCompletionChoice(
-            index=0,
-            message=response_message,
-            finish_reason=first_choice.get("finish_reason", "stop") # Default to stop
-        )
-        
-        model_name_display = "unknown_model"
-        if MODEL_PATH and os.path.exists(MODEL_PATH):
-            model_name_display = os.path.basename(MODEL_PATH)
+            first_choice = completion_result["choices"][0]
+            llm_message = first_choice["message"]
 
-        logger.info("Successfully generated chat completion response.")
-        return ChatCompletionResponse(
-            id=completion_result.get("id", f"chatcmpl-{int(time.time())}"), # Use LLM id or generate one
-            created=completion_result.get("created", int(time.time())),     # Use LLM created or generate one
-            model=model_name_display,
-            choices=[choice]
-        )
+            response_message = ChatMessageOutput(
+                role=llm_message.get("role", "assistant"), # Default to assistant if role is missing
+                content=llm_message.get("content", "")    # Default to empty string if content is missing
+            )
+            
+            choice = ChatCompletionChoice(
+                index=0,
+                message=response_message,
+                finish_reason=first_choice.get("finish_reason", "stop") # Default to stop
+            )
+            
+            model_name_display = "unknown_model"
+            if MODEL_PATH and os.path.exists(MODEL_PATH):
+                model_name_display = os.path.basename(MODEL_PATH)
 
-    except HTTPException: # Re-raise HTTPExceptions
-        raise
-    except Exception as e:
-        logger.exception("An unexpected error occurred during chat completion:") # Get tracebacl
-        raise HTTPException(
-            status_code=500, detail=f"Internal server error during inference: {str(e)}"
-        )
+            logger.info("Successfully generated chat completion response.")
+            return ChatCompletionResponse(
+                id=completion_result.get("id", f"chatcmpl-{int(time.time())}"), # Use LLM id or generate one
+                created=completion_result.get("created", int(time.time())),     # Use LLM created or generate one
+                model=model_name_display,
+                choices=[choice]
+            )
+
+        except HTTPException: # Re-raise HTTPExceptions
+            raise
+        except Exception as e:
+            logger.exception("An unexpected error occurred during chat completion:") # Get tracebacl
+            raise HTTPException(
+                status_code=500, detail=f"Internal server error during inference: {str(e)}"
+            )
         
